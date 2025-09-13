@@ -2,142 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Key Generator — Hookify</title>
+  <title>Key Generator</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;max-width:900px;margin:2rem auto;padding:1rem}
-    input, button, select, textarea{font-size:1rem;padding:.5rem;margin:.25rem 0;width:100%}
-    .row{display:flex;gap:.5rem}
-    .row > *{flex:1}
-    .kbd{background:#f4f4f4;padding:.5rem;border-radius:6px}
-    .result{background:#0f172a;color:#fff;padding:1rem;border-radius:8px;word-break:break-all}
-    label{font-weight:600;margin-top:.5rem;display:block}
+    body { font-family: system-ui, sans-serif; text-align:center; margin:3rem; }
+    button { font-size:1.1rem; padding:.5rem 1rem; }
+    .result { margin-top:1.5rem; font-size:1.3rem; font-weight:bold; }
   </style>
 </head>
 <body>
-  <h1>Custom Key Generator</h1>
-  <p>Generates formatted keys. For production signing/validation use the server-side RSA signing example below.</p>
+  <h1>GENERATE KEY TO CONTINUE ON MY MENU</h1>
+  <p>Click the button to create a new key.</p>
 
-  <label>Key format (use X for random hex/digits; - kept literally):</label>
-  <input id="format" value="XXXX-XXXX-XXXX-XXXX" />
+  <button onclick="generateKey()">Generate Key</button>
 
-  <label>Generate mode</label>
-  <select id="mode">
-    <option value="random">Random key</option>
-    <option value="deterministic">Deterministic (from email/ID)</option>
-  </select>
-
-  <label id="labelInput">Seed (email or username)</label>
-  <input id="seed" placeholder="user@example.com" />
-
-  <label>Product ID (optional)</label>
-  <input id="productId" placeholder="PROD001" />
-
-  <div style="display:flex;gap:.5rem;margin-top:.5rem">
-    <button id="genBtn">Generate Key</button>
-    <button id="copyBtn">Copy</button>
-    <button id="signPreviewBtn">(Optional) Ask server to sign</button>
-  </div>
-
-  <h3>Generated key</h3>
   <div class="result" id="output">—</div>
 
-  <h3>Signed token (server)</h3>
-  <div class="result" id="signed">No signed token yet</div>
-
   <script>
-    // --- helper: format template like "XXXX-XXXX-XXXX" where X -> hex digit/digit/letter as you prefer
-    function formatKeyFromTemplate(template, charFn) {
-      let out = '';
-      for (const ch of template) {
-        if (ch === 'X') out += charFn();
-        else out += ch;
-      }
-      return out;
+    function randomChar() {
+      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // no 0/O/1/I
+      return chars[Math.floor(Math.random() * chars.length)];
     }
-
-    // random hex nibble
-    function randomHex() {
-      return Math.floor(Math.random()*16).toString(16).toUpperCase();
-    }
-
-    // random upper alpha or digit
-    function randomAlphaNum() {
-      const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'; // avoid ambiguous 0/O, 1/I
-      return chars[Math.floor(Math.random()*chars.length)];
-    }
-
-    // simple deterministic generator using Web Crypto (HMAC-SHA256) — client only for demo.
-    async function hmacHex(keyStr, msg, length) {
-      const enc = new TextEncoder();
-      const key = await crypto.subtle.importKey('raw', enc.encode(keyStr), {name:'HMAC', hash:'SHA-256'}, false, ['sign']);
-      const sig = await crypto.subtle.sign('HMAC', key, enc.encode(msg));
-      const bytes = new Uint8Array(sig);
-      let hex = '';
-      for (const b of bytes) hex += ('00' + b.toString(16)).slice(-2);
-      return hex.slice(0, length).toUpperCase();
-    }
-
-    // UI wiring
-    const formatEl = document.getElementById('format');
-    const modeEl = document.getElementById('mode');
-    const seedEl = document.getElementById('seed');
-    const productEl = document.getElementById('productId');
-    const outEl = document.getElementById('output');
-    const signedEl = document.getElementById('signed');
-
-    document.getElementById('genBtn').addEventListener('click', async () => {
-      const template = formatEl.value || 'XXXX-XXXX-XXXX';
-      const mode = modeEl.value;
+    function generateKey() {
+      const pattern = 'XXXX-XXXX-XXXX-XXXX';
       let key = '';
-      if (mode === 'random') {
-        // pick alpha-numeric style
-        key = formatKeyFromTemplate(template, randomAlphaNum);
-      } else {
-        // deterministic from seed+product (CLIENT DEMO ONLY)
-        const seed = seedEl.value.trim() || 'demo';
-        const product = productEl.value.trim() || 'PROD';
-        // create deterministic hex and map to allowed chars
-        const hex = await hmacHex(seed + '|' + product, 'license', 64);
-        // map hex pairs to allowed chars
-        let idx = 0;
-        key = formatKeyFromTemplate(template, () => {
-          // use two hex chars to make broader range
-          const pair = hex.slice((idx++ * 2) % hex.length, ((idx) * 2) % hex.length || 2);
-          // convert pair to number and map to allowed chars
-          const num = parseInt(pair || '00', 16);
-          const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-          return chars[num % chars.length];
-        });
+      for (const ch of pattern) {
+        key += ch === 'X' ? randomChar() : ch;
       }
-      outEl.textContent = key;
-      signedEl.textContent = 'No signed token yet';
-    });
-
-    document.getElementById('copyBtn').addEventListener('click', () => {
-      const k = outEl.textContent;
-      if (!k || k === '—') return alert('Generate a key first');
-      navigator.clipboard?.writeText(k).then(()=>alert('Copied!')).catch(()=>prompt('Copy this key:', k));
-    });
-
-    // Optional: contact a server endpoint to request a signed token for the key.
-    // Replace `SIGN_ENDPOINT` with your server endpoint when you deploy.
-    const SIGN_ENDPOINT = ''; // e.g. https://yourserver.example.com/sign
-    document.getElementById('signPreviewBtn').addEventListener('click', async () => {
-      const key = outEl.textContent;
-      if (!key || key==='—') return alert('Generate a key first');
-      if (!SIGN_ENDPOINT) return alert('No signing endpoint configured. Add your server URL in code.');
-      try {
-        const res = await fetch(SIGN_ENDPOINT, {
-          method: 'POST',
-          headers: {'content-type':'application/json'},
-          body: JSON.stringify({key})
-        });
-        const j = await res.json();
-        if (res.ok && j.signed) signedEl.textContent = j.signed;
-        else signedEl.textContent = 'Server error: ' + (j.error || res.status);
-      } catch (e) { signedEl.textContent = 'Network error: ' + e.message; }
-    });
+      document.getElementById('output').textContent = key;
+    }
   </script>
 </body>
 </html>
